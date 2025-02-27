@@ -6,6 +6,9 @@ dotenv.config();
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false,  // Often needed for Heroku Postgres
+  }
 });
 
 // Log any pool errors
