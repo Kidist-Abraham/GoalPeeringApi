@@ -13,10 +13,6 @@ router.get("/", authenticateToken, async (req, res) => {
     const searchTerm = req.query.query || "";
     const offset = (page - 1) * limit;
 
-    // We'll add a new LEFT JOIN on a subquery (gv_total)
-    // that calculates the total votes for each goal.
-    // Also, keep the existing logic to determine if the user joined 
-    // and if they have voted (user_voted).
     const searchQuery = `
       SELECT 
         g.*,
@@ -45,14 +41,12 @@ router.get("/", authenticateToken, async (req, res) => {
       LIMIT $2 OFFSET $3
     `;
     const values = [
-      `%${searchTerm}%`,  // $1
-      limit,              // $2
-      offset,             // $3
-      userId              // $4
+      `%${searchTerm}%`,  
+      limit,              
+      offset,             
+      userId              
     ];
     const result = await db.query(searchQuery, values);
-
-    // Count total for pagination (unchanged)
     const countQuery = `
       SELECT COUNT(*) as total
       FROM goals
@@ -76,7 +70,7 @@ router.get("/", authenticateToken, async (req, res) => {
 
 
  /**
-   * 1. Get all goals the user has joined.
+   * Get all goals the user has joined.
    */
  router.get("/joined", authenticateToken, async (req, res) => {
   try {
@@ -101,7 +95,7 @@ router.get("/", authenticateToken, async (req, res) => {
 });
 
 /**
- * 2. Get all goals the user owns.
+ *  Get all goals the user owns.
  */
 router.get("/owned", authenticateToken, async (req, res) => {
   try {
@@ -125,15 +119,13 @@ router.get("/owned", authenticateToken, async (req, res) => {
 
 
 /**
- * GET /goals/:id
+ * GET the goal details
  */
 
 router.get("/:id", authenticateToken, async (req, res) => {
   const goalId = req.params.id;
 
   try {
-    // 1) Fetch the goal with the username of the creator
-    //    (i.e., the user who created_by = user.id).
     const goalQuery = `
       SELECT 
         g.id,
@@ -154,7 +146,6 @@ router.get("/:id", authenticateToken, async (req, res) => {
 
     const { id, name, description, status, userName } = goalResult.rows[0];
 
-    // 2) memberCount: how many users have joined this goal
     const memberCountQuery = `
       SELECT COUNT(*) AS member_count
       FROM goal_members
@@ -163,7 +154,6 @@ router.get("/:id", authenticateToken, async (req, res) => {
     const memberCountResult = await db.query(memberCountQuery, [goalId]);
     const memberCount = parseInt(memberCountResult.rows[0].member_count || "0", 10);
 
-    // 3) accomplishedCount: how many have status='COMPLETED'
     const accomplishedCountQuery = `
       SELECT COUNT(*) AS accomplished_count
       FROM goal_members
@@ -173,9 +163,6 @@ router.get("/:id", authenticateToken, async (req, res) => {
     const accomplishedCountResult = await db.query(accomplishedCountQuery, [goalId]);
     const accomplishedCount = parseInt(accomplishedCountResult.rows[0].accomplished_count || "0", 10);
 
-    // 4) Fetch tips
-    //    - Join with users to get tip owner's username
-    //    - Subquery or join to get up/down counts
     const tipsQuery = `
       SELECT
         t.id,
@@ -206,13 +193,12 @@ router.get("/:id", authenticateToken, async (req, res) => {
       id: row.id,
       title: row.title,
       content: row.content,
-      owner: row.owner,  // the username who created the tip
+      owner: row.owner, 
       numberOfUpVote: parseInt(row.number_of_up_vote, 10),
       numberOfDownVote: parseInt(row.number_of_down_vote, 10),
     }));
 
-    // 5) Fetch success stories
-    //    - Join with users to get the owner's username
+
     const storiesQuery = `
       SELECT
         ss.id,
@@ -232,7 +218,6 @@ router.get("/:id", authenticateToken, async (req, res) => {
       owner: row.owner,
     }));
 
-    // 6) Construct final response
     const responseData = {
       id,
       name,
@@ -254,15 +239,13 @@ router.get("/:id", authenticateToken, async (req, res) => {
  
   
   /**
-   * 3. Create a new goal.
+   * Create a new goal.
    */
   router.post("/", authenticateToken, async (req, res) => {
     try {
       const userId = req.user.id;
       const { name, description } = req.body;
   
-      // 1. Insert a new goal
-      //    Return the inserted row (including the auto-generated id)
       const insertGoalQuery = `
         INSERT INTO goals (name, description, created_by, status)
         VALUES ($1, $2, $3, 'PENDING')
@@ -277,17 +260,15 @@ router.get("/:id", authenticateToken, async (req, res) => {
   
       const newGoal = goalResult.rows[0];
       const newGoalId = newGoal.id;
-  
-      // 2. Insert the creator as a member
-      //    You can decide on a default role or membership status (e.g., 'admin', 'owner', 'active', etc.).
+
       const insertMemberQuery = `
         INSERT INTO goal_members (goal_id, user_id, role, joined_at, status)
         VALUES ($1, $2, 'owner', NOW(), 'JOINED')
       `;
-      // Or if you don't have "status" or "role" columns, remove them.
+   
       await db.query(insertMemberQuery, [newGoalId, userId]);
   
-      // Return the newly created goal info
+
       res.status(201).json({
         message: "Goal created successfully",
         goal: newGoal,
@@ -300,8 +281,7 @@ router.get("/:id", authenticateToken, async (req, res) => {
   
   
   /**
-   * 4. Vote for a goal. 
-   * 
+   * Vote for a goal. 
    */
 
   router.post("/:goalId/vote", authenticateToken, async (req, res) => {
@@ -314,7 +294,6 @@ router.get("/:id", authenticateToken, async (req, res) => {
         return res.status(400).json({ message: "Invalid action. Use 'upvote' or 'remove'." });
       }
   
-      // 1) If upvote, insert or update vote_value = 1
       if (action === "upvote") {
         const upvoteQuery = `
           INSERT INTO goal_votes (goal_id, user_id, vote_value)
@@ -324,7 +303,6 @@ router.get("/:id", authenticateToken, async (req, res) => {
         `;
         await db.query(upvoteQuery, [goalId, userId]);
   
-        // 2) Check total votes for this goal
         const sumQuery = `
           SELECT SUM(vote_value) AS total_votes
           FROM goal_votes
@@ -333,11 +311,9 @@ router.get("/:id", authenticateToken, async (req, res) => {
         const sumResult = await db.query(sumQuery, [goalId]);
         const totalVotes = parseInt(sumResult.rows[0].total_votes || "0", 10);
   
-        // 3) If total votes >= threshold, update goal from PENDING to ACTIVE
-        //    (only if it is still in PENDING)
-        const threshold = 2; // <-- You can adjust this threshold as needed
+        const threshold = 2; 
         if (totalVotes >= threshold) {
-          // Update only if the goal is currently PENDING
+
           await db.query(
             `UPDATE goals
                 SET status = 'ACTIVE'
@@ -349,7 +325,7 @@ router.get("/:id", authenticateToken, async (req, res) => {
   
         return res.json({ message: "Goal upvoted successfully" });
       } 
-      // 4) If remove, delete the user's vote
+
       else {
         const deleteQuery = `
           DELETE FROM goal_votes
@@ -372,8 +348,7 @@ router.get("/:id", authenticateToken, async (req, res) => {
   
   
   /**
-   * 5. Add a tip to a goal.
-   *   
+   * Add a tip to a goal.  
    */
   router.post("/:goalId/tips", authenticateToken, async (req, res) => {
     try {
@@ -399,9 +374,7 @@ router.get("/:id", authenticateToken, async (req, res) => {
   });
 
   /**
- * GET /:goalId/tips
  * Return all tips for a specific goal, along with the total vote count for each tip.
- *
  */
 router.get("/:goalId/tips", authenticateToken, async (req, res) => {
   try {
@@ -452,8 +425,7 @@ router.get("/:goalId/tips", authenticateToken, async (req, res) => {
 
 
   /**
-   * 5. Vote a tip.
-   *   
+   *  Vote a tip.  
    */
  
 router.post("/:goalId/tips/:tipId/vote", authenticateToken, async (req, res) => {
@@ -463,7 +435,6 @@ router.post("/:goalId/tips/:tipId/vote", authenticateToken, async (req, res) => 
     const { voteValue } = req.body;
     console.log(voteValue)
 
-    // Validate voteValue is either +1 or -1
     if (![1, -1].includes(voteValue)) {
       return res.status(400).json({ message: "voteValue must be +1 or -1." });
     }
@@ -484,8 +455,7 @@ router.post("/:goalId/tips/:tipId/vote", authenticateToken, async (req, res) => 
 
   
   /**
-   * 6. Join a goal.
-   *    
+   * Join a goal.   
    */
   router.post("/:goalId/join", authenticateToken, async (req, res) => {
     try {
@@ -493,8 +463,6 @@ router.post("/:goalId/tips/:tipId/vote", authenticateToken, async (req, res) => 
       const { goalId } = req.params;
       console.log("Joining goal", goalId)
       
-      // Insert membership
-      // If you have a "status" column in "goal_members" to track membership status, set it here (e.g., "JOINED").
       const query = `
         INSERT INTO goal_members (goal_id, user_id, role, status, joined_at)
         VALUES ($1, $2, 'member', 'JOINED', NOW())
@@ -513,7 +481,7 @@ router.post("/:goalId/tips/:tipId/vote", authenticateToken, async (req, res) => 
   });
   
   /**
-   * 7. Add a success story to a goal.
+   *  Add a success story to a goal.
    */
   router.post("/:goalId/successStories", authenticateToken, async (req, res) => {
     try {
@@ -539,9 +507,8 @@ router.post("/:goalId/tips/:tipId/vote", authenticateToken, async (req, res) => 
   });
 
   /**
- * GET /:goalId/successStories
+ * 
  * Return all success stories for a given goal.
- *
  * 
  */
 router.get("/:goalId/successStories", authenticateToken, async (req, res) => {
@@ -561,7 +528,6 @@ router.get("/:goalId/successStories", authenticateToken, async (req, res) => {
     `;
     const storiesResult = await db.query(storiesQuery, [goalId, limit, offset]);
 
-    // 2) Count total stories (for pagination)
     const countQuery = `
       SELECT COUNT(*) as total
       FROM success_stories
@@ -585,14 +551,13 @@ router.get("/:goalId/successStories", authenticateToken, async (req, res) => {
   
   /**
    * 8. Complete a goal (for the current user).
-   *    Requires a 'status' column in "goal_members" to track membership state.
    */
   router.put("/:goalId/complete", authenticateToken, async (req, res) => {
     try {
       const userId = req.user.id;
       const { goalId } = req.params;
   
-      // 1. Check the user’s membership record
+  
       const membershipCheckQuery = `
         SELECT *
           FROM goal_members
@@ -608,13 +573,12 @@ router.get("/:goalId/successStories", authenticateToken, async (req, res) => {
   
       const membership = membershipResult.rows[0];
   
-      // 2. If already completed, return an error
+
       if (membership.status === "COMPLETED") {
-        // You can use 409 Conflict or 400 Bad Request, etc.
+
         return res.status(409).json({ message: "You have already completed this goal." });
       }
   
-      // 3. Otherwise, update the membership to completed
       const updateQuery = `
         UPDATE goal_members
            SET status = 'COMPLETED'
@@ -637,7 +601,7 @@ router.get("/:goalId/successStories", authenticateToken, async (req, res) => {
   
   
   /**
-   * 9. Leave a goal (remove membership).
+   *  Leave a goal (remove membership).
    */
   router.delete("/:goalId/leave", authenticateToken, async (req, res) => {
     try {
@@ -665,7 +629,9 @@ router.get("/:goalId/successStories", authenticateToken, async (req, res) => {
     }
   });
 
-  // router.get("/:goalId/chatMessages")
+  /**
+   *  Fetch chat messages
+   */
 router.get("/:goalId/chatMessages", authenticateToken, async (req, res) => {
   try {
     const { goalId } = req.params;

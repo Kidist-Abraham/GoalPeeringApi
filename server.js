@@ -30,14 +30,12 @@ app.use("/goal", goalRoutes);
 if (process.env.NODE_ENV !== "test") {
   const PORT = process.env.PORT || 3000;
 
-  // 1) Create the raw HTTP server from Express app
   const server = http.createServer(app);
 
-  // 2) Attach Socket.IO to the server
   const { Server } = require("socket.io");
   const io = new Server(server, {
     cors: {
-      origin: "*",    // Adjust if you want to restrict origins
+      origin: "*",  
     },
   });
 
@@ -53,7 +51,6 @@ if (process.env.NODE_ENV !== "test") {
     groupId = Number(msg.groupId)
     console.log('Joining ', groupId)
     try {
-      // Check if the user is a member of the group, or if group is active
       const membershipCheck = `
         SELECT 1
         FROM goal_members
@@ -84,10 +81,10 @@ if (process.env.NODE_ENV !== "test") {
     }
   });
   
-  // 2. Listen for new chat messages and broadcast them to the group room
+  //  Listen for new chat messages and broadcast them to the group room
   socket.on("sendMessage", async ({ groupId, text }) => {
     try {
-      // 2a. Check membership again (or skip if you trust the prior join logic)
+
       const membershipCheck = `
         SELECT 1
         FROM goal_members
@@ -99,7 +96,7 @@ if (process.env.NODE_ENV !== "test") {
         return socket.emit("errorMessage", "User is not a member of this group");
       }
       
-      // 2b. Insert the message into the DB
+
       const insertQuery = `
         INSERT INTO chat_messages (goal_id, user_id, message_text)
         VALUES ($1, $2, $3)
@@ -111,7 +108,7 @@ if (process.env.NODE_ENV !== "test") {
       const userResult = await db.query(`SELECT username FROM users WHERE id = $1`, [socket.user.id]);
     const userName = userResult.rows[0]?.username ?? "Anonymous";
       
-      // 2c. Broadcast this message to everyone in the group
+    
       io.to(`group_${groupId}`).emit("newMessage", {
         id: newMessage.id,
         group_id: newMessage.group_id,
@@ -126,7 +123,7 @@ if (process.env.NODE_ENV !== "test") {
     }
   });
   
-  // 3. Handle disconnects
+  //  Handle disconnects
   socket.on("disconnect", () => {
     console.log(`Socket disconnected: ${socket.id}`);
   });

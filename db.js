@@ -1,17 +1,16 @@
 const { Pool } = require("pg");
 const dotenv = require("dotenv");
 
-// Load environment variables
 dotenv.config();
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
-    rejectUnauthorized: false,  // Often needed for Heroku Postgres
+    rejectUnauthorized: false,  
   }
 });
 
-// Log any pool errors
+
 pool.on("error", (err) => {
   console.error("Unexpected error on idle PostgreSQL client:", err);
   process.exit(-1);
