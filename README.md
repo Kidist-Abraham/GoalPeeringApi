@@ -1,8 +1,6 @@
 # Goal Peering Backend
 
-This repository contains the **backend** for managing "Collections" and user contributions. The system can store contribution files either in **AWS S3** or locally on the server, based on an environment variable `ENABLE_S3`.
-
-## Table of Contents
+This repository contains the **backend** for managing "Goals" and peer engagment on helping eachother on the achievment process. The system serves API for managing goals, tips, success stories, and chat groups. 
 
 1. [Overview](#1-overview)  
 2. [Environment Variables](#2-environment-variables)  
@@ -13,12 +11,9 @@ This repository contains the **backend** for managing "Collections" and user con
 
 ## 1. Overview
 
-This backend allows **authenticated users** to create and manage “collections,” and upload files (contributions) to these collections. Depending on configuration, files are either:
+The application includes a Node.js/Express API and Socket.IO server
 
-- **Locally** stored in `./uploads/<collectionId>`
-- **AWS S3**, under `<collectionId>/<userIdHash>/<timestamp_filename>`
-
-Users can also **download a zip** of all contributions for a given collection. The code uses token-based authentication (JWT) so you must provide a valid token for most routes.
+This backend securely handles user authentication, goal management, real-time chat, and voting functionality via a PostgreSQL database, and is deployed on Heroku with SSL.
 
 ---
 
@@ -40,24 +35,7 @@ DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}
 # JWT Secret
 JWT_SECRET=your_jwt_secret
 
-# AWS Credentials
-AWS_ACCESS_KEY_ID=your_aws_access_key
-AWS_SECRET_ACCESS_KEY=your_aws_secret_key
-AWS_REGION=your_aws_region
-AWS_BUCKET_NAME=your_s3_bucket_name
-
-# Storage
-ENABLE_S3=false
-
 ```
-
-Explanation
-
-ENABLE_S3: true or false. If true, files go to S3; if false, they go to ./uploads. Set false, for testing purposes.
-
-AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, AWS_BUCKET_NAME: Required only if ENABLE_S3=true, for storing files in your AWS S3 bucket.
-
-JWT_SECRET: Secret key used for JWT-based authentication.
 
 ## 3. Setup & Installation
 
@@ -65,8 +43,8 @@ Clone the repo:
 
 ```bash
 
-git clone https://github.com/Kidist-Abraham/AlphaCollectionsApi.git
-cd AlphaCollectionsApi
+git clone https://github.com/Kidist-Abraham/GoalPeeringApi.git
+cd GoalPeeringApi
 ```
 
 Create and populate .env file (see [Environment Variables](#2-environment-variables) ).
@@ -78,7 +56,3 @@ Run docker compose:
 ```
 
 This will run the database and backed services and the backed server listens on localhost PORT 3000.
-
-## 4. Run tests
-
-Aftr making sure you run the docker compose, run `npm test`
