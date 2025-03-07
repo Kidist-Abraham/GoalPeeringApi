@@ -278,6 +278,42 @@ router.get("/:id", authenticateToken, async (req, res) => {
       res.status(500).json({ message: "Failed to create goal" });
     }
   });
+
+/**
+ * Delete a goal (only if the user owns it).
+ */
+router.delete("/:goalId", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { goalId } = req.params;
+
+    // Check if the goal exists and is owned by the user
+    const checkQuery = `
+      SELECT * FROM goals
+      WHERE id = $1 AND created_by = $2
+    `;
+    const checkResult = await db.query(checkQuery, [goalId, userId]);
+
+    if (checkResult.rowCount === 0) {
+      return res.status(403).json({ message: "You do not have permission to delete this goal or goal does not exist." });
+    }
+    
+    const deleteQuery = `
+      DELETE FROM goals WHERE id = $1 RETURNING *
+    `;
+    const deleteResult = await db.query(deleteQuery, [goalId]);
+
+    if (deleteResult.rowCount === 0) {
+      return res.status(404).json({ message: "Goal not found" });
+    }
+
+    res.json({ message: "Goal deleted successfully" });
+  } catch (error) {
+    console.error("Failed to delete goal:", error);
+    res.status(500).json({ message: "Failed to delete goal" });
+  }
+});
+
   
   
   /**
